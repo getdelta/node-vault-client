@@ -45,6 +45,7 @@ class VaultIAMAuth extends VaultBaseAuth {
      * @param {Object} config
      * @param {String} config.role - Role name of the auth/{mount}/role/{name} backend.
      * @param {AWS.Credentials|AWS.Credentials[]} config.credentials {@see AWS.CredentialProviderChain providers}
+     * @param {String} config.region AWS region, used when talking to STS
      * @param {String} [config.iam_server_id_header_value] - Optional. Header's value X-Vault-AWS-IAM-Server-ID.
      * @param {String} mount - Vault's AWS Auth Backend mount point ("aws" by default)
      */
@@ -54,6 +55,7 @@ class VaultIAMAuth extends VaultBaseAuth {
         const AWS = require('aws-sdk');
 
         this.__role = config.role;
+        this.__aws_region = config.region;
         this.__iam_server_id_header_value = config.iam_server_id_header_value;
 
         if (!(config.credentials instanceof AWS.Credentials) && !_.isArray(config.credentials)) {
@@ -142,7 +144,8 @@ class VaultIAMAuth extends VaultBaseAuth {
             body: 'Action=GetCallerIdentity&Version=2011-06-15',
             headers: this.__iam_server_id_header_value ? {
                 'X-Vault-AWS-IAM-Server-ID': this.__iam_server_id_header_value,
-            } : {}
+            } : {},
+            region: this.__aws_region,
         }, credentials);
     }
 
