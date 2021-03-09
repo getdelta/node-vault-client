@@ -16,8 +16,9 @@
   "author": "Vlad Fedosov <vlad.fedosov@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
+    "@aws-sdk/signature-v4": "3.6.1",
+    "@aws-sdk/hash-node": "3.6.1",
     "assign-deep": "^1.0.1",
-    "aws4": "^1.8.0",
     "bluebird": "^3.7.0",
     "lodash": "^4.17.15",
     "long-timeout": "^0.1.1",
@@ -27,11 +28,10 @@
     "url-join": "^2.0.5"
   },
   "peerDependencies": {
-    "config": "1.x",
-    "aws-sdk": "^2.67.0"
+    "@aws-sdk/credential-provider-node": "3.8.0",
+    "config": "1.x"
   },
   "devDependencies": {
-    "aws-sdk": "^2.544.0",
     "chai": "^3.5.0",
     "co-mocha": "^1.2.2",
     "deep-freeze": "^0.0.1",

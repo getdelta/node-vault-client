@@ -1,9 +1,9 @@
 'use strict';
 
 const VaultBaseAuth = require('./VaultBaseAuth');
-const aws4 = require('aws4');
+const { SignatureV4 } = require('@aws-sdk/signature-v4');
+const { Hash } = require('@aws-sdk/hash-node');
 const _ = require('lodash');
-const errors = require('../errors');
 
 /**
  * Implementation of AWS Auth Backend :: IAM Authentication Method
@@ -27,10 +27,11 @@ const errors = require('../errors');
  *           config: {
  *               role: 'my_iam_role',
  *               iam_server_id_header_value: VAULT_ADDR,   // Optional
- *               credentials: new AWS.Credentials({
+ *               region: AWS_REGION,
+ *               credentials: {
  *                 accessKeyId: AWS_ACCESS_KEY,
  *                 secretAccessKey: AWS_SECRET_KEY,
- *               })
+ *               }
  *           }
  *       }
  *   })
@@ -44,7 +45,7 @@ class VaultIAMAuth extends VaultBaseAuth {
      * @param {Object} logger
      * @param {Object} config
      * @param {String} config.role - Role name of the auth/{mount}/role/{name} backend.
-     * @param {AWS.Credentials|AWS.Credentials[]} config.credentials {@see AWS.CredentialProviderChain providers}
+     * @param {AWS.Credentials|AWS.CredentialProvider|undefined} config.credentials {@see AWS.CredentialProviderChain providers}
      * @param {String} config.region AWS region, used when talking to STS
      * @param {String} [config.iam_server_id_header_value] - Optional. Header's value X-Vault-AWS-IAM-Server-ID.
      * @param {String} mount - Vault's AWS Auth Backend mount point ("aws" by default)
@@ -52,23 +53,14 @@ class VaultIAMAuth extends VaultBaseAuth {
     constructor(api, logger, config, mount) {
         super(api, logger, mount || 'aws');
 
-        const AWS = require('aws-sdk');
-
         this.__role = config.role;
-        this.__aws_region = config.region;
         this.__iam_server_id_header_value = config.iam_server_id_header_value;
-
-        if (!(config.credentials instanceof AWS.Credentials) && !_.isArray(config.credentials)) {
-            throw new errors.InvalidAWSCredentialsError('Credentials must be provided. {AWS.Credentials|AWS.Credentials[]} or function-providers, which return them.')
-        }
-
-        const credentialsProviders = _.isArray(config.credentials)
-            ? config.credentials
-            : [config.credentials];
-
-        this.__credentialChain = new AWS.CredentialProviderChain(
-            credentialsProviders
-        );
+        this.__signer = new SignatureV4({
+            credentials: config.credentials || require('@aws-sdk/credential-provider-node').defaultProvider(),
+            region: config.region,
+            service: 'sts',
+            sha256: Hash.bind(null, "sha256")
+        });
     }
 
     /**
@@ -81,12 +73,12 @@ class VaultIAMAuth extends VaultBaseAuth {
         );
 
         return Promise.resolve()
-            .then(() => this.__getCredentials())
-            .then((credentials) => {
+            .then((credentials) => this.__getStsRequest(credentials))
+            .then((sts_request) => {
                 return this.__apiClient.makeRequest(
                     'POST',
                     `/auth/${this._mount}/login`,
-                    this.__getVaultAuthRequestBody(this.__getStsRequest(credentials))
+                    this.__getVaultAuthRequestBody(sts_request)
                 );
             })
             .then((response) => {
@@ -96,20 +88,6 @@ class VaultIAMAuth extends VaultBaseAuth {
                 );
                 return this._getTokenEntity(response.auth.client_token)
             })
-    }
-
-    /**
-     * Credentials resolved by {@see AWS.CredentialProviderChain}
-     *
-     * @returns {Promise<AWS.Credentials>}
-     * @private
-     */
-    __getCredentials() {
-        return new Promise((resolve, reject) =>
-            this.__credentialChain.resolve((err, credentials) =>
-                err ? reject(err) : resolve(credentials)
-            )
-        );
     }
 
     /**
@@ -134,19 +112,19 @@ class VaultIAMAuth extends VaultBaseAuth {
     /**
      * Prepare signed request to AWS STS :: GetCallerIdentity
      *
-     * @param credentials
      * @private
      */
-    __getStsRequest(credentials) {
-        return aws4.sign({
-            service: 'sts',
+    __getStsRequest() {
+        return this.__signer.sign({
             method: 'POST',
             body: 'Action=GetCallerIdentity&Version=2011-06-15',
             headers: this.__iam_server_id_header_value ? {
                 'X-Vault-AWS-IAM-Server-ID': this.__iam_server_id_header_value,
             } : {},
-            region: this.__aws_region,
-        }, credentials);
+            path: '/',
+            hostname: 'sts.amazonaws.com',
+            protocol: 'https',
+        });
     }
 
     /**
@@ -154,7 +132,7 @@ class VaultIAMAuth extends VaultBaseAuth {
      * @private
      */
     __base64encode(string) {
-        return new Buffer(string).toString('base64')
+        return Buffer.from(string, 'utf8').toString('base64');
     }
 
     /**
