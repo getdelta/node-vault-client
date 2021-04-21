@@ -16,8 +16,8 @@
   "author": "Vlad Fedosov <vlad.fedosov@gmail.com>",
   "license": "Apache-2.0",
   "dependencies": {
-    "@aws-sdk/signature-v4": "3.6.1",
     "@aws-sdk/hash-node": "3.6.1",
+    "@aws-sdk/signature-v4": "3.6.1",
     "assign-deep": "^1.0.1",
     "bluebird": "^3.7.0",
     "lodash": "^4.17.15",
