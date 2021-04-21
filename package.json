@@ -1,6 +1,6 @@
 {
   "name": "@getdelta/node-vault-client",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A Vault Client implemented in pure javascript for HashiCorp Vault. It supports variety of Auth Backends and performs lease renewal for issued auth token.",
   "engines": {
     "node": ">=6.0.0"
