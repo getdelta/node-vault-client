@@ -104,7 +104,7 @@ class VaultIAMAuth extends VaultBaseAuth {
                 JSON.stringify(this.__headersLikeGolangStyle(stsRequest.headers))
             ),
             iam_request_body: this.__base64encode(stsRequest.body),
-            iam_request_url: this.__base64encode(`https://${stsRequest.hostname}${stsRequest.path}`),
+            iam_request_url: this.__base64encode(`${stsRequest.protocol}://${stsRequest.hostname}${stsRequest.path}`),
             role: this.__role
         }
     }
@@ -115,12 +115,20 @@ class VaultIAMAuth extends VaultBaseAuth {
      * @private
      */
     __getStsRequest() {
+        const body = 'Action=GetCallerIdentity&Version=2011-06-15';
+        const headers = {
+            'host': 'sts.amazonaws.com',
+            'content-type': 'application/x-www-form-urlencoded; charset=utf-8',
+            'content-length': body.length.toString(),
+        };
+        if (this.__iam_server_id_header_value) {
+            headers['x-vault-aws-iam-server-id'] = this.__iam_server_id_header_value;
+        }
+
         return this.__signer.sign({
             method: 'POST',
-            body: 'Action=GetCallerIdentity&Version=2011-06-15',
-            headers: this.__iam_server_id_header_value ? {
-                'X-Vault-AWS-IAM-Server-ID': this.__iam_server_id_header_value,
-            } : {},
+            body,
+            headers,
             path: '/',
             hostname: 'sts.amazonaws.com',
             protocol: 'https',
